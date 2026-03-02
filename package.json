@@ -1,0 +1,42 @@
+{
+	"name": "ifinho",
+	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"type": "module",
+	"scripts": {
+		"dev": "npm run dev --workspaces",
+		"build": "npm run build --workspaces",
+		"check-types": "npm run check-types --workspaces",
+		"dev:native": "npm run dev --workspace native",
+		"dev:web": "npm run dev --workspace web",
+		"dev:server": "npm run dev --workspace server",
+		"db:push": "npm run db:push --workspace @ifinho/db",
+		"db:studio": "npm run db:studio --workspace @ifinho/db",
+		"db:generate": "npm run db:generate --workspace @ifinho/db",
+		"db:migrate": "npm run db:migrate --workspace @ifinho/db",
+		"check": "biome check --write .",
+		"prepare": "husky"
+	},
+	"dependencies": {
+		"@ifinho/env": "*",
+		"dotenv": "^17.2.2",
+		"zod": "^4.1.13"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.0",
+		"@ifinho/config": "*",
+		"@types/node": "^22.13.14",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.1.2",
+		"typescript": "^5"
+	},
+	"lint-staged": {
+		"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
+			"biome check --write ."
+		]
+	},
+	"packageManager": "npm@11.6.1"
+}
