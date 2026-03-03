@@ -75,7 +75,7 @@ Ainda estou em fase de desenvolvimento, mas em breve estarei totalmente integrad
 
 ---
 
-Enquanto isso, você pode consultar o site oficial em [ifrs.edu.br/canoas](https://ifrs.edu.br/canoas) ou usar os comandos \`/ajuda\` e \`/sobre\` para mais informações.`;
+Enquanto isso, você pode consultar o site oficial em [ifrs.edu.br/canoas](https://ifrs.edu.br/canoas) ou usar os comandos /ajuda e /sobre para mais informações.`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

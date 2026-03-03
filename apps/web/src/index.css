@@ -128,9 +128,20 @@
 	}
 }
 
+/* Remove backtick pseudo-elements added by @tailwindcss/typography */
+.prose code::before,
+.prose code::after {
+	content: none;
+}
+
 @keyframes blink {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0; }
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0;
+	}
 }
 
 .streaming-cursor::after {
