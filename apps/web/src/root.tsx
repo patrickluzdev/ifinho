@@ -10,7 +10,6 @@ import {
 import type { Route } from "./+types/root";
 
 import "./index.css";
-import Header from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "./components/ui/sonner";
 
@@ -53,10 +52,7 @@ export default function App() {
 			disableTransitionOnChange
 			storageKey="vite-ui-theme"
 		>
-			<div className="grid h-svh grid-rows-[auto_1fr]">
-				<Header />
-				<Outlet />
-			</div>
+			<Outlet />
 			<Toaster richColors />
 		</ThemeProvider>
 	);
