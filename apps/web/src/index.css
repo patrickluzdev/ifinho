@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -125,4 +126,20 @@
 	html {
 		@apply font-sans;
 	}
+}
+
+@keyframes blink {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0; }
+}
+
+.streaming-cursor::after {
+	content: "▋";
+	display: inline-block;
+	animation: blink 0.8s step-start infinite;
+	margin-left: 1px;
+	font-size: 0.85em;
+	vertical-align: middle;
+	color: currentColor;
+	opacity: 0.7;
 }

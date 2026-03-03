@@ -1,6 +1,13 @@
 import { ArrowDown } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { GenerationStage, MessageData } from "@/types/chat";
 import type { PatternHandler } from "./message";
 import { MessageList } from "./message-list";
@@ -11,9 +18,10 @@ interface MessageAreaProps {
 	generationStage: GenerationStage;
 	patternHandlers?: PatternHandler[];
 	onEditMessage: (id: string, content: string) => void;
-	onDeleteMessage: (id: string) => void;
+	onRetryMessage: (id: string) => void;
 	onRegenerateMessage: (id: string) => void;
 	onFeedback?: (id: string, type: "like" | "dislike") => void;
+	streamingMessageId?: string | null;
 }
 
 export function MessageArea({
@@ -22,12 +30,15 @@ export function MessageArea({
 	generationStage,
 	patternHandlers,
 	onEditMessage,
-	onDeleteMessage,
+	onRetryMessage,
 	onRegenerateMessage,
 	onFeedback,
+	streamingMessageId,
 }: MessageAreaProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const bottomRef = useRef<HTMLDivElement>(null);
+	const lastUserMessageRef = useRef<HTMLDivElement>(null);
+	const spacerRef = useRef<HTMLDivElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
 
 	const isNearBottom = useCallback(() => {
@@ -40,11 +51,48 @@ export function MessageArea({
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, []);
 
-	// Auto-scroll quando chegam novas mensagens, só se perto do final
-	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional — scroll on message count or loading change
+	// Before paint: set spacer so user message can scroll to top while waiting.
+	// Keep it large while streaming to prevent layout shift that would push
+	// the user message away from the top. Collapse only when fully done.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional
+	useLayoutEffect(() => {
+		const container = scrollRef.current;
+		const lastUserMsg = lastUserMessageRef.current;
+		const spacer = spacerRef.current;
+		if (!container || !spacer) return;
+
+		const lastMessage = messages[messages.length - 1];
+		const keepLarge = lastMessage?.sender === "user" || !!streamingMessageId;
+
+		if (keepLarge && lastUserMsg) {
+			const needed = Math.max(
+				0,
+				container.clientHeight - lastUserMsg.offsetHeight - 16,
+			);
+			spacer.style.height = `${needed}px`;
+		} else {
+			spacer.style.height = "128px";
+		}
+	}, [messages.length, streamingMessageId]);
+
+	// After paint: scroll ONLY when the user sends (last message is from user)
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional
 	useEffect(() => {
-		if (isNearBottom()) scrollToBottom();
-	}, [messages.length, isLoading]);
+		if (messages.length === 0) return;
+		const lastMessage = messages[messages.length - 1];
+		if (lastMessage.sender !== "user") return;
+
+		requestAnimationFrame(() => {
+			const container = scrollRef.current;
+			const lastUserMsg = lastUserMessageRef.current;
+			if (!container || !lastUserMsg) return;
+
+			const containerRect = container.getBoundingClientRect();
+			const msgRect = lastUserMsg.getBoundingClientRect();
+			const scrollAmount = msgRect.top - containerRect.top - 16;
+			container.scrollBy({ top: scrollAmount, behavior: "smooth" });
+		});
+	}, [messages.length]);
 
 	const handleScroll = () => {
 		setShowScrollButton(!isNearBottom());
@@ -54,7 +102,7 @@ export function MessageArea({
 		<div className="relative h-full">
 			<div
 				ref={scrollRef}
-				className="h-full overflow-y-auto pb-32"
+				className={cn("h-full overflow-y-auto")}
 				onScroll={handleScroll}
 			>
 				<div className="mx-auto max-w-3xl">
@@ -64,11 +112,15 @@ export function MessageArea({
 						generationStage={generationStage}
 						patternHandlers={patternHandlers}
 						onEditMessage={onEditMessage}
-						onDeleteMessage={onDeleteMessage}
+						onRetryMessage={onRetryMessage}
 						onRegenerateMessage={onRegenerateMessage}
 						onFeedback={onFeedback}
+						streamingMessageId={streamingMessageId}
+						lastUserMessageRef={lastUserMessageRef}
 					/>
 				</div>
+				{/* Dynamic spacer: allows last user message to scroll to the top */}
+				<div ref={spacerRef} />
 				<div ref={bottomRef} />
 			</div>
 

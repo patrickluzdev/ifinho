@@ -5,15 +5,21 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+export interface ChatInputHandle {
+	clear: () => void;
+	focus: () => void;
+}
+
 export interface ChatInputProps
 	extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
 	onSend: (message: string) => void;
 	onStopGeneration?: () => void;
 	isLoading?: boolean;
 	placeholder?: string;
+	onValueChange?: (value: string) => void;
 }
 
-export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
+export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(
 	(
 		{
 			className,
@@ -21,6 +27,8 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
 			onStopGeneration,
 			isLoading = false,
 			placeholder = "Pergunte sobre o IFRS Canoas...",
+			onValueChange,
+			onKeyDown,
 			...props
 		},
 		ref,
@@ -28,26 +36,39 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
 		const [input, setInput] = React.useState("");
 		const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
-		const mergedRef = React.useMemo(
-			() => (node: HTMLTextAreaElement | null) => {
-				if (node) {
-					if (typeof ref === "function") ref(node);
-					else if (ref) ref.current = node;
-					textareaRef.current = node;
-				}
-			},
-			[ref],
+		React.useImperativeHandle(
+			ref,
+			() => ({
+				clear: () => setInput(""),
+				focus: () => textareaRef.current?.focus(),
+			}),
+			[],
 		);
 
+		const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+			setInput(e.target.value);
+			onValueChange?.(e.target.value);
+		};
+
 		const handleSend = React.useCallback(
-			(e: React.FormEvent) => {
+			(e: React.SyntheticEvent) => {
 				e.preventDefault();
 				if (!input.trim() || isLoading) return;
 				onSend(input.trim());
 				setInput("");
+				onValueChange?.("");
 			},
-			[input, isLoading, onSend],
+			[input, isLoading, onSend, onValueChange],
 		);
+
+		const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+			onKeyDown?.(e);
+			if (e.defaultPrevented) return;
+			if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				handleSend(e);
+			}
+		};
 
 		// Auto-resize reativo ao input
 		// biome-ignore lint/correctness/useExhaustiveDependencies: input is the intended trigger for auto-resize
@@ -65,17 +86,12 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
 				<form onSubmit={handleSend} className="relative">
 					<div className="relative overflow-hidden rounded-lg border bg-background shadow-sm">
 						<textarea
-							ref={mergedRef}
+							ref={textareaRef}
 							placeholder={placeholder}
-							className="min-h-[84px] w-full resize-none border-none px-4 pt-3 pb-12 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
+							className="min-h-21 w-full resize-none border-none px-4 pt-3 pb-12 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
 							value={input}
-							onChange={(e) => setInput(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && !e.shiftKey) {
-									e.preventDefault();
-									handleSend(e);
-								}
-							}}
+							onChange={handleChange}
+							onKeyDown={handleKeyDown}
 							rows={1}
 							disabled={isLoading}
 							{...props}

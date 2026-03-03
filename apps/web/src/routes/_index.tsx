@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ChatFooter } from "@/components/chat-footer";
+import type { ChatInputHandle } from "@/components/chat-input";
 import { MessageArea } from "@/components/message-area";
 import { useChat } from "@/hooks/use-chat";
 
@@ -12,12 +13,16 @@ const SUGGESTIONS = [
 
 export default function Home() {
 	const chat = useChat();
-	const inputRef = useRef<HTMLTextAreaElement>(null);
+	const inputRef = useRef<ChatInputHandle>(null);
 	const isEmpty = chat.messages.length === 0;
 
 	useEffect(() => {
 		inputRef.current?.focus();
 	}, []);
+
+	useEffect(() => {
+		if (!chat.isLoading) inputRef.current?.focus();
+	}, [chat.isLoading]);
 
 	const handleSuggestionClick = (text: string) => {
 		chat.handleSend(text);
@@ -66,8 +71,9 @@ export default function Home() {
 				messages={chat.messages}
 				isLoading={chat.isLoading}
 				generationStage={chat.generationStage}
+				streamingMessageId={chat.streamingMessageId}
 				onEditMessage={chat.handleEdit}
-				onDeleteMessage={chat.handleDelete}
+				onRetryMessage={chat.handleRetry}
 				onRegenerateMessage={chat.handleRegenerate}
 			/>
 			<div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-60% from-background to-transparent">

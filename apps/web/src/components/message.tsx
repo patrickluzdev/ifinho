@@ -31,6 +31,7 @@ export interface MessageProps {
 	patternHandlers?: PatternHandler[];
 	className?: string;
 	contentClassName?: string; // Additional className for the content container
+	isStreaming?: boolean;
 }
 
 export function Message({
@@ -42,6 +43,7 @@ export function Message({
 	patternHandlers = [],
 	className,
 	contentClassName,
+	isStreaming = false,
 }: MessageProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editedContent, setEditedContent] = useState(content);
@@ -203,6 +205,7 @@ export function Message({
 								sender === "user"
 									? "prose-invert prose-p:text-primary-foreground"
 									: "prose-neutral dark:prose-invert",
+								isStreaming && "streaming-cursor",
 							)}
 						>
 							<ReactMarkdown components={markdownComponents}>

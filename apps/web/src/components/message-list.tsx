@@ -2,11 +2,11 @@ import {
 	Copy,
 	Info,
 	RefreshCw,
+	RotateCcw,
 	ThumbsDown,
 	ThumbsUp,
-	Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { type RefObject, useState } from "react";
 import { toast } from "sonner";
 import type { GenerationStage, MessageData } from "@/types/chat";
 import { GenerationStatus } from "./generation-status";
@@ -18,9 +18,11 @@ interface MessageListProps {
 	generationStage: GenerationStage;
 	patternHandlers?: PatternHandler[];
 	onEditMessage: (id: string, content: string) => void;
-	onDeleteMessage: (id: string) => void;
+	onRetryMessage: (id: string) => void;
 	onRegenerateMessage: (id: string) => void;
 	onFeedback?: (id: string, type: "like" | "dislike") => void;
+	lastUserMessageRef?: RefObject<HTMLDivElement | null>;
+	streamingMessageId?: string | null;
 }
 
 export function MessageList({
@@ -29,9 +31,11 @@ export function MessageList({
 	generationStage,
 	patternHandlers = [],
 	onEditMessage,
-	onDeleteMessage,
+	onRetryMessage,
 	onRegenerateMessage,
 	onFeedback,
+	lastUserMessageRef,
+	streamingMessageId,
 }: MessageListProps) {
 	const [metadataVisible, setMetadataVisible] = useState<
 		Record<string, boolean>
@@ -49,9 +53,18 @@ export function MessageList({
 		setTimeout(() => setCopying(null), 1000);
 	};
 
+	// Index of the last user message in the list
+	let lastUserIndex = -1;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i].sender === "user") {
+			lastUserIndex = i;
+			break;
+		}
+	}
+
 	return (
 		<div className="space-y-8 p-4">
-			{messages.map((message) => {
+			{messages.map((message, index) => {
 				const actionButtons =
 					message.sender === "assistant"
 						? [
@@ -94,6 +107,12 @@ export function MessageList({
 							]
 						: [
 								{
+									id: "retry",
+									icon: <RotateCcw size={14} />,
+									onClick: () => onRetryMessage(message.id),
+									title: "Reenviar mensagem",
+								},
+								{
 									id: "copy",
 									icon: (
 										<Copy
@@ -104,17 +123,14 @@ export function MessageList({
 									onClick: () => handleCopy(message.id, message.content),
 									title: "Copiar mensagem",
 								},
-								{
-									id: "delete",
-									icon: <Trash2 size={14} />,
-									onClick: () => onDeleteMessage(message.id),
-									title: "Excluir mensagem",
-									className: "hover:text-destructive",
-								},
 							];
 
 				return (
-					<div key={message.id} className="w-full">
+					<div
+						key={message.id}
+						ref={index === lastUserIndex ? lastUserMessageRef : undefined}
+						className="w-full"
+					>
 						<Message
 							content={message.content}
 							sender={message.sender}
@@ -124,6 +140,7 @@ export function MessageList({
 							patternHandlers={
 								message.sender === "assistant" ? patternHandlers : undefined
 							}
+							isStreaming={message.id === streamingMessageId}
 						/>
 						{message.sender === "assistant" &&
 							message.metadata &&
