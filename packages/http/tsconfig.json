@@ -1,0 +1,3 @@
+{
+	"extends": "@ifinho/config/tsconfig.base.json"
+}

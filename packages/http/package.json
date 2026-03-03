@@ -1,0 +1,16 @@
+{
+	"name": "@ifinho/http",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"eventsource-parser": "^3.0.0"
+	},
+	"devDependencies": {
+		"@ifinho/config": "*",
+		"typescript": "^5"
+	}
+}
