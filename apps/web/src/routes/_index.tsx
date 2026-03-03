@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { ChatFooter } from "@/components/chat-footer";
 import { MessageArea } from "@/components/message-area";
 import { useChat } from "@/hooks/use-chat";
-import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
 	"Quando fecha o prazo de inscrição do PIBIC?",
@@ -24,15 +23,10 @@ export default function Home() {
 		chat.handleSend(text);
 	};
 
-	return (
-		<div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-			<main
-				className={cn(
-					"mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden",
-					isEmpty && "justify-center",
-				)}
-			>
-				{isEmpty ? (
+	if (isEmpty) {
+		return (
+			<div className="h-screen overflow-hidden bg-background text-foreground">
+				<main className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center">
 					<div className="flex w-full flex-col gap-6 pb-4">
 						<div className="flex flex-col items-center gap-4 px-4">
 							<div className="text-center">
@@ -61,25 +55,31 @@ export default function Home() {
 							inputRef={inputRef}
 						/>
 					</div>
-				) : (
-					<>
-						<MessageArea
-							messages={chat.messages}
-							isLoading={chat.isLoading}
-							generationStage={chat.generationStage}
-							onEditMessage={chat.handleEdit}
-							onDeleteMessage={chat.handleDelete}
-							onRegenerateMessage={chat.handleRegenerate}
-						/>
-						<ChatFooter
-							onSendMessage={chat.handleSend}
-							onStopGeneration={chat.handleStop}
-							isLoading={chat.isLoading}
-							inputRef={inputRef}
-						/>
-					</>
-				)}
-			</main>
+				</main>
+			</div>
+		);
+	}
+
+	return (
+		<div className="relative h-screen overflow-hidden bg-background text-foreground">
+			<MessageArea
+				messages={chat.messages}
+				isLoading={chat.isLoading}
+				generationStage={chat.generationStage}
+				onEditMessage={chat.handleEdit}
+				onDeleteMessage={chat.handleDelete}
+				onRegenerateMessage={chat.handleRegenerate}
+			/>
+			<div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-60% from-background to-transparent">
+				<div className="mx-auto w-full max-w-3xl">
+					<ChatFooter
+						onSendMessage={chat.handleSend}
+						onStopGeneration={chat.handleStop}
+						isLoading={chat.isLoading}
+						inputRef={inputRef}
+					/>
+				</div>
+			</div>
 		</div>
 	);
 }

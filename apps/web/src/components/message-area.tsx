@@ -51,27 +51,29 @@ export function MessageArea({
 	};
 
 	return (
-		<div className="relative flex-1 overflow-hidden">
+		<div className="relative h-full">
 			<div
 				ref={scrollRef}
-				className="h-full overflow-y-auto"
+				className="h-full overflow-y-auto pb-32"
 				onScroll={handleScroll}
 			>
-				<MessageList
-					messages={messages}
-					isLoading={isLoading}
-					generationStage={generationStage}
-					patternHandlers={patternHandlers}
-					onEditMessage={onEditMessage}
-					onDeleteMessage={onDeleteMessage}
-					onRegenerateMessage={onRegenerateMessage}
-					onFeedback={onFeedback}
-				/>
+				<div className="mx-auto max-w-3xl">
+					<MessageList
+						messages={messages}
+						isLoading={isLoading}
+						generationStage={generationStage}
+						patternHandlers={patternHandlers}
+						onEditMessage={onEditMessage}
+						onDeleteMessage={onDeleteMessage}
+						onRegenerateMessage={onRegenerateMessage}
+						onFeedback={onFeedback}
+					/>
+				</div>
 				<div ref={bottomRef} />
 			</div>
 
 			{showScrollButton && (
-				<div className="absolute right-4 bottom-4">
+				<div className="absolute bottom-36 left-1/2 -translate-x-1/2">
 					<Button
 						size="sm"
 						variant="outline"
