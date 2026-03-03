@@ -20,7 +20,6 @@ export interface ActionButton {
 	onClick: () => void;
 	title?: string;
 	className?: string;
-	position?: "inside" | "outside"; // Whether button should appear inside or outside the message
 }
 
 export interface MessageProps {
@@ -116,12 +115,6 @@ export function Message({
 		[patternHandlers],
 	);
 
-	const { insideButtons, outsideButtons } = React.useMemo(() => {
-		const inside = actionButtons.filter((btn) => btn.position !== "outside");
-		const outside = actionButtons.filter((btn) => btn.position === "outside");
-		return { insideButtons: inside, outsideButtons: outside };
-	}, [actionButtons]);
-
 	const markdownComponents = React.useMemo(() => {
 		if (patternHandlers.length === 0) return undefined;
 
@@ -157,153 +150,135 @@ export function Message({
 				className,
 			)}
 		>
-			<div className="relative">
-				<div
-					className={cn(
-						"max-w-[90vw] sm:max-w-[70vw]",
-						sender === "user"
-							? "rounded-lg bg-primary text-primary-foreground"
-							: "",
-						contentClassName,
-					)}
-				>
-					{isEditing ? (
-						<div className="p-3">
-							<textarea
-								className={cn(
-									"w-full resize-none rounded-md border p-2 focus:outline-none focus:ring-1 focus:ring-primary",
-									sender === "user"
-										? "border-primary-foreground/20 bg-primary/90 text-primary-foreground"
-										: "border-input bg-muted text-foreground",
-								)}
-								value={editedContent}
-								onChange={(e) => setEditedContent(e.target.value)}
-								onKeyDown={handleKeyDown}
-								rows={3}
-							/>
-							<div className="mt-2 flex justify-end gap-2">
-								<button
-									type="button"
-									onClick={() => {
-										setIsEditing(false);
-										setEditedContent(content);
-									}}
-									className="text-white transition-colors"
-									title="Cancel"
-								>
-									<Undo height={18} />
-								</button>
-								<button
-									type="button"
-									onClick={handleSaveEdit}
-									className="text-white"
-									title="Save"
-								>
-									<Save height={18} />
-								</button>
-							</div>
-						</div>
-					) : (
-						<div className="p-3">
-							<div
-								className={cn(
-									"prose prose-sm max-w-none text-base",
-									sender === "user"
-										? "prose-invert prose-p:text-primary-foreground"
-										: "prose-neutral dark:prose-invert",
-								)}
+			<div
+				className={cn(
+					"max-w-[90vw] sm:max-w-[70vw]",
+					sender === "user"
+						? "rounded-lg bg-primary text-primary-foreground"
+						: "",
+					contentClassName,
+				)}
+			>
+				{isEditing ? (
+					<div className="p-3">
+						<textarea
+							className={cn(
+								"w-full resize-none rounded-md border p-2 focus:outline-none focus:ring-1 focus:ring-primary",
+								sender === "user"
+									? "border-primary-foreground/20 bg-primary/90 text-primary-foreground"
+									: "border-input bg-muted text-foreground",
+							)}
+							value={editedContent}
+							onChange={(e) => setEditedContent(e.target.value)}
+							onKeyDown={handleKeyDown}
+							rows={3}
+						/>
+						<div className="mt-2 flex justify-end gap-2">
+							<button
+								type="button"
+								onClick={() => {
+									setIsEditing(false);
+									setEditedContent(content);
+								}}
+								className="text-white transition-colors"
+								title="Cancelar"
 							>
-								<ReactMarkdown components={markdownComponents}>
-									{displayContent || ""}
-								</ReactMarkdown>
-								{reasoning && (
-									<div className="mt-3 rounded-md border bg-muted/40 text-sm">
-										<Collapsible
-											open={showReasoning}
-											onOpenChange={setShowReasoning}
-										>
-											<div className="flex cursor-pointer select-none items-center justify-between px-3 py-2">
-												<button
-													type="button"
-													onClick={() => setShowReasoning((o) => !o)}
-													className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-												>
-													<Brain className="h-4 w-4" />
-													<span className="font-medium">Model reasoning</span>
-													<ChevronDown
-														className={cn(
-															"h-4 w-4 transition-transform",
-															showReasoning ? "rotate-180" : "rotate-0",
-														)}
-													/>
-												</button>
-											</div>
-											<CollapsibleContent className="px-3 pt-0 pb-3 [&[data-state=closed]]:hidden">
-												<div
-													className={cn(
-														"prose prose-xs max-w-none whitespace-pre-wrap break-words text-muted-foreground",
-														sender === "user" ? "prose-invert" : "",
-													)}
-												>
-													{reasoning}
-												</div>
-											</CollapsibleContent>
-										</Collapsible>
-									</div>
-								)}
-							</div>
+								<Undo height={18} />
+							</button>
+							<button
+								type="button"
+								onClick={handleSaveEdit}
+								className="text-white"
+								title="Salvar"
+							>
+								<Save height={18} />
+							</button>
 						</div>
-					)}
-					{!isEditing && insideButtons.length > 0 && (
-						<div className="flex justify-start px-3 py-1">
-							<div className="flex items-center gap-2">
-								{insideButtons.map((button) => (
-									<button
-										type="button"
-										key={button.id}
-										onClick={button.onClick}
-										className={cn(
-											"p-1 text-muted-foreground transition-colors hover:text-foreground",
-											button.className,
-										)}
-										title={button.title}
+					</div>
+				) : (
+					<div className="p-3">
+						<div
+							className={cn(
+								"prose prose-sm max-w-none text-base",
+								sender === "user"
+									? "prose-invert prose-p:text-primary-foreground"
+									: "prose-neutral dark:prose-invert",
+							)}
+						>
+							<ReactMarkdown components={markdownComponents}>
+								{displayContent || ""}
+							</ReactMarkdown>
+							{reasoning && (
+								<div className="mt-3 rounded-md border bg-muted/40 text-sm">
+									<Collapsible
+										open={showReasoning}
+										onOpenChange={setShowReasoning}
 									>
-										{button.icon}
-									</button>
-								))}
-							</div>
+										<div className="flex cursor-pointer select-none items-center justify-between px-3 py-2">
+											<button
+												type="button"
+												onClick={() => setShowReasoning((o) => !o)}
+												className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+											>
+												<Brain className="h-4 w-4" />
+												<span className="font-medium">
+													Raciocínio do modelo
+												</span>
+												<ChevronDown
+													className={cn(
+														"h-4 w-4 transition-transform",
+														showReasoning ? "rotate-180" : "rotate-0",
+													)}
+												/>
+											</button>
+										</div>
+										<CollapsibleContent className="px-3 pt-0 pb-3 data-[state=closed]:hidden">
+											<div
+												className={cn(
+													"prose prose-xs wrap-break-word max-w-none whitespace-pre-wrap text-muted-foreground",
+													sender === "user" ? "prose-invert" : "",
+												)}
+											>
+												{reasoning}
+											</div>
+										</CollapsibleContent>
+									</Collapsible>
+								</div>
+							)}
 						</div>
-					)}
-				</div>
-				{!isEditing && outsideButtons.length > 0 && (
-					<div className="absolute top-0 left-0 flex h-full -translate-x-full flex-row items-center gap-1 pr-2 opacity-0 transition-opacity group-hover:opacity-100">
-						{outsideButtons.map((button) => (
-							<button
-								type="button"
-								key={button.id}
-								onClick={button.onClick}
-								className={cn(
-									"rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-									button.className,
-								)}
-								title={button.title}
-							>
-								{button.icon}
-							</button>
-						))}
-						{editable && onEdit && (
-							<button
-								type="button"
-								onClick={() => setIsEditing(true)}
-								className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-								title="Edit message"
-							>
-								<PencilIcon size={16} />
-							</button>
-						)}
 					</div>
 				)}
 			</div>
+
+			{/* Botões de ação — visíveis no hover, abaixo do balão */}
+			{!isEditing && actionButtons.length > 0 && (
+				<div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+					{actionButtons.map((button) => (
+						<button
+							type="button"
+							key={button.id}
+							onClick={button.onClick}
+							className={cn(
+								"rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+								button.className,
+							)}
+							title={button.title}
+						>
+							{button.icon}
+						</button>
+					))}
+					{editable && onEdit && (
+						<button
+							type="button"
+							onClick={() => setIsEditing(true)}
+							className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+							title="Editar mensagem"
+						>
+							<PencilIcon size={16} />
+						</button>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }
