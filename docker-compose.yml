@@ -1,0 +1,75 @@
+services:
+  postgres:
+    container_name: ifinho-postgres
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ifinho-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ifinho-network
+
+  ollama:
+    container_name: ifinho-ollama
+    image: ollama/ollama
+    restart: unless-stopped
+    volumes:
+      - ifinho-ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - ifinho-network
+
+  server:
+    container_name: ifinho-server
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    profiles:
+      - prod
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ifinho-postgres:5432/${POSTGRES_DB}
+      CORS_ORIGIN: http://localhost
+      OLLAMA_BASE_URL: http://ifinho-ollama:11434
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - ifinho-network
+
+  web:
+    container_name: ifinho-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    profiles:
+      - prod
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "80:80"
+    networks:
+      - ifinho-network
+
+volumes:
+  ifinho-postgres-data:
+  ifinho-ollama-data:
+
+networks:
+  ifinho-network:
+    driver: bridge
