@@ -3,7 +3,7 @@ export function createClient(baseUrl: string) {
 		async get<T>(path: string): Promise<T> {
 			const res = await fetch(`${baseUrl}${path}`);
 			if (!res.ok) throw new Error(`HTTP ${res.status}: ${path}`);
-			return res.json() as Promise<T>;
+			return res.json() as T;
 		},
 
 		async post<TBody, TRes>(path: string, body: TBody): Promise<TRes> {
@@ -13,7 +13,7 @@ export function createClient(baseUrl: string) {
 				body: JSON.stringify(body),
 			});
 			if (!res.ok) throw new Error(`HTTP ${res.status}: ${path}`);
-			return res.json() as Promise<TRes>;
+			return res.json() as TRes;
 		},
 	};
 }
