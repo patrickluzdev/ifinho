@@ -36,19 +36,27 @@ export function MessageArea({
 	streamingMessageId,
 }: MessageAreaProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
-	const bottomRef = useRef<HTMLDivElement>(null);
 	const lastUserMessageRef = useRef<HTMLDivElement>(null);
 	const spacerRef = useRef<HTMLDivElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
 
-	const isNearBottom = useCallback(() => {
-		const el = scrollRef.current;
-		if (!el) return true;
-		return el.scrollHeight - el.scrollTop - el.clientHeight <= 100;
+	const isViewingOldMessages = useCallback(() => {
+		const container = scrollRef.current;
+		const lastUserMsg = lastUserMessageRef.current;
+		if (!container || !lastUserMsg) return false;
+		const containerRect = container.getBoundingClientRect();
+		const msgRect = lastUserMsg.getBoundingClientRect();
+		return msgRect.bottom < containerRect.top;
 	}, []);
 
-	const scrollToBottom = useCallback(() => {
-		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+	const scrollToLastUserMessage = useCallback(() => {
+		const container = scrollRef.current;
+		const lastUserMsg = lastUserMessageRef.current;
+		if (!container || !lastUserMsg) return;
+		const containerRect = container.getBoundingClientRect();
+		const msgRect = lastUserMsg.getBoundingClientRect();
+		const scrollAmount = msgRect.top - containerRect.top - 16;
+		container.scrollBy({ top: scrollAmount, behavior: "smooth" });
 	}, []);
 
 	// Before paint: set spacer so user message can scroll to top while waiting.
@@ -71,7 +79,32 @@ export function MessageArea({
 			);
 			spacer.style.height = `${needed}px`;
 		} else {
-			spacer.style.height = "128px";
+			// Read user message position BEFORE changing the spacer height so the
+			// layout is still in its current (large-spacer) state. This gives the
+			// true absolute offset of the message within the scroll content.
+			const msgAbsoluteTop = lastUserMsg
+				? lastUserMsg.getBoundingClientRect().top -
+					container.getBoundingClientRect().top +
+					container.scrollTop
+				: null;
+
+			if (msgAbsoluteTop !== null) {
+				const desiredScrollTop = Math.max(0, msgAbsoluteTop - 16);
+				// Compute the minimum spacer to keep desiredScrollTop achievable
+				// after collapsing. A short response would shrink scrollHeight below
+				// desiredScrollTop + clientHeight, clamping scrollTop upward and
+				// revealing older messages above the user's message.
+				const contentWithoutSpacer =
+					container.scrollHeight - spacer.offsetHeight;
+				const neededSpacer = Math.max(
+					128,
+					desiredScrollTop + container.clientHeight - contentWithoutSpacer,
+				);
+				spacer.style.height = `${neededSpacer}px`;
+				container.scrollTop = desiredScrollTop;
+			} else {
+				spacer.style.height = "128px";
+			}
 		}
 	}, [messages.length, streamingMessageId]);
 
@@ -95,7 +128,7 @@ export function MessageArea({
 	}, [messages.length]);
 
 	const handleScroll = () => {
-		setShowScrollButton(!isNearBottom());
+		setShowScrollButton(isViewingOldMessages());
 	};
 
 	return (
@@ -121,7 +154,6 @@ export function MessageArea({
 				</div>
 				{/* Dynamic spacer: allows last user message to scroll to the top */}
 				<div ref={spacerRef} />
-				<div ref={bottomRef} />
 			</div>
 
 			{showScrollButton && (
@@ -130,7 +162,7 @@ export function MessageArea({
 						size="sm"
 						variant="outline"
 						className="h-8 w-8 rounded-full p-0 shadow-md"
-						onClick={scrollToBottom}
+						onClick={scrollToLastUserMessage}
 					>
 						<ArrowDown size={14} />
 						<span className="sr-only">Ir para o final</span>

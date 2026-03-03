@@ -17,8 +17,6 @@ app.get("/", (_req, res) => {
 	res.status(200).send("OK");
 });
 
-// --- Chat ---
-
 const COMMAND_RESPONSES: Record<string, string> = {
 	"/ajuda": `## 🤖 O que posso fazer por você?
 

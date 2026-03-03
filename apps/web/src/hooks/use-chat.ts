@@ -76,7 +76,10 @@ export function useChat() {
 		};
 		setMessages((prev) => [...prev, userMessage]);
 		setIsLoading(true);
-		sendMessage(content);
+		// Defer to next task so React renders the user message first,
+		// allowing the scroll-to-user-message effect to fire before the
+		// assistant message is added to state.
+		setTimeout(() => sendMessage(content), 0);
 	};
 
 	const handleStop = () => {
