@@ -67,7 +67,7 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
 						<textarea
 							ref={mergedRef}
 							placeholder={placeholder}
-							className="w-full resize-none border-none px-4 pt-3 pb-12 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
+							className="min-h-[84px] w-full resize-none border-none px-4 pt-3 pb-12 placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0"
 							value={input}
 							onChange={(e) => setInput(e.target.value)}
 							onKeyDown={(e) => {
