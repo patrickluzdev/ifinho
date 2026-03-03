@@ -1,27 +1,28 @@
 "use client";
 
-import { Brain, Globe, MessageSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-
-export type GenerationStage = "thinking" | "searching" | "responding" | "idle";
+import type { GenerationStage } from "@/types/chat";
 
 interface GenerationStatusProps {
 	stage: GenerationStage;
 	className?: string;
 }
 
+const stageText: Record<Exclude<GenerationStage, "idle">, string> = {
+	thinking: "Pensando",
+	searching: "Buscando documentos",
+	responding: "Respondendo",
+};
+
 export function GenerationStatus({ stage, className }: GenerationStatusProps) {
 	const [dots, setDots] = useState("");
 
-	// Animated dots for the status message
 	useEffect(() => {
 		if (stage === "idle") return;
-
 		const interval = setInterval(() => {
 			setDots((prev) => (prev.length >= 3 ? "" : `${prev}.`));
 		}, 500);
-
 		return () => clearInterval(interval);
 	}, [stage]);
 
@@ -29,36 +30,12 @@ export function GenerationStatus({ stage, className }: GenerationStatusProps) {
 
 	return (
 		<div className={cn("flex justify-start", className)}>
-			<div className="flex max-w-[80%] items-center gap-2 rounded-lg bg-muted p-3">
-				{stage === "thinking" && (
-					<>
-						<Brain size={16} className="animate-pulse text-purple-500" />
-						<span className="text-muted-foreground text-sm">
-							Thinking{dots}
-						</span>
-					</>
-				)}
-
-				{stage === "searching" && (
-					<>
-						<Globe size={16} className="animate-spin text-blue-500" />
-						<span className="text-muted-foreground text-sm">
-							Searching{dots}
-						</span>
-					</>
-				)}
-
-				{stage === "responding" && (
-					<>
-						<MessageSquare
-							size={16}
-							className="animate-bounce text-green-500"
-						/>
-						<span className="text-muted-foreground text-sm">
-							Responding{dots}
-						</span>
-					</>
-				)}
+			<div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+				<span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground/60" />
+				<span className="text-muted-foreground text-sm">
+					{stageText[stage]}
+					{dots}
+				</span>
 			</div>
 		</div>
 	);

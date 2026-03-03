@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { type GenerationStage, GenerationStatus } from "./generation-status";
+import type { GenerationStage } from "@/types/chat";
+import { GenerationStatus } from "./generation-status";
 import { Message, type PatternHandler } from "./message";
 
 interface MessageData {
