@@ -40,14 +40,12 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ifinho-postgres:5432/${POSTGRES_DB}
-      CORS_ORIGIN: http://localhost
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       OLLAMA_BASE_URL: http://ifinho-ollama:11434
       NODE_ENV: production
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "3000:3000"
     networks:
       - ifinho-network
 
@@ -56,13 +54,13 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-http://localhost:3000}
     profiles:
       - prod
     restart: unless-stopped
     depends_on:
       - server
-    ports:
-      - "80:80"
     networks:
       - ifinho-network
 
