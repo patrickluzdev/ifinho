@@ -42,6 +42,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ifinho-postgres:5432/${POSTGRES_DB}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       OLLAMA_BASE_URL: http://ifinho-ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
       NODE_ENV: production
     depends_on:
       postgres:
