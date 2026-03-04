@@ -1,6 +1,7 @@
 import { env } from "@ifinho/env/server";
 import cors from "cors";
 import express from "express";
+import { Ollama } from "ollama";
 
 const app = express();
 
@@ -60,24 +61,12 @@ Estou em desenvolvimento! Em breve estarei totalmente integrado com todos os doc
 *Projeto open source desenvolvido pela comunidade do campus.* 🌱`,
 };
 
-const getMockResponse = (question: string) =>
-	`> "${question}"
-
-Obrigado pela sua pergunta! 🎓
-
-Ainda estou em fase de desenvolvimento, mas em breve estarei totalmente integrado ao **IFRS Campus Canoas** e poderei responder com precisão sobre:
-
-- 📅 **Calendário acadêmico** — datas de matrícula, provas e eventos
-- 📋 **Editais e programas** — PIBIC, PIBID, assistência estudantil e monitoria
-- 📚 **Normas e regulamentos** — aproveitamento de estudos, trancamentos e mais
-- 📄 **Documentos** — como solicitar histórico, declarações e atestados
-- 🎓 **Cursos** — técnicos, graduações e pós-graduações disponíveis
-
----
-
-Enquanto isso, você pode consultar o site oficial em [ifrs.edu.br/canoas](https://ifrs.edu.br/canoas) ou usar os comandos /ajuda e /sobre para mais informações.`;
+const SYSTEM_PROMPT = `Você é o Ifinho, assistente virtual do IFRS Campus Canoas.
+Responda sempre em português, de forma clara e objetiva, usando Markdown para formatar suas respostas (títulos, listas, negrito quando fizer sentido). Use emojis com frequência para deixar as respostas mais visuais e amigáveis — em títulos, itens de lista, destaques e no início de seções.`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const ollama = new Ollama({ host: env.OLLAMA_BASE_URL });
 
 app.post("/api/chat", async (req, res) => {
 	const body = req.body as { message?: unknown };
@@ -88,23 +77,50 @@ app.post("/api/chat", async (req, res) => {
 		return;
 	}
 
-	const content =
-		COMMAND_RESPONSES[message.trim().toLowerCase()] ??
-		getMockResponse(message.trim());
-
 	res.setHeader("Content-Type", "text/event-stream");
 	res.setHeader("Cache-Control", "no-cache");
 	res.setHeader("Connection", "keep-alive");
 
-	const tokens = content.match(/\S+\s*/g) ?? [content];
+	const trimmed = message.trim();
+	const commandContent = COMMAND_RESPONSES[trimmed.toLowerCase()];
 
-	for (const token of tokens) {
-		res.write(`data: ${JSON.stringify({ token })}\n\n`);
-		await sleep(20);
+	if (commandContent) {
+		const tokens = commandContent.match(/\S+\s*/g) ?? [commandContent];
+		for (const token of tokens) {
+			res.write(`data: ${JSON.stringify({ token })}\n\n`);
+			await sleep(20);
+		}
+		res.write("data: [DONE]\n\n");
+		res.end();
+		return;
 	}
 
-	res.write("data: [DONE]\n\n");
-	res.end();
+	try {
+		const stream = await ollama.chat({
+			model: env.OLLAMA_MODEL,
+			stream: true,
+			messages: [
+				{ role: "system", content: SYSTEM_PROMPT },
+				{ role: "user", content: trimmed },
+			],
+		});
+
+		for await (const chunk of stream) {
+			const token = chunk.message.content;
+			if (token) {
+				res.write(`data: ${JSON.stringify({ token })}\n\n`);
+			}
+		}
+
+		res.write("data: [DONE]\n\n");
+		res.end();
+	} catch (error) {
+		console.error("Ollama error:", error);
+		const message =
+			error instanceof Error ? error.message : "Erro desconhecido";
+		res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+		res.end();
+	}
 });
 
 app.listen(3000, () => {

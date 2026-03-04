@@ -8,6 +8,8 @@ interface ChatFooterProps {
 	onStopGeneration: () => void;
 	isLoading: boolean;
 	inputRef?: React.RefObject<ChatInputHandle | null>;
+	onInputFocus?: () => void;
+	onInputBlur?: () => void;
 }
 
 export function ChatFooter({
@@ -15,6 +17,8 @@ export function ChatFooter({
 	onStopGeneration,
 	isLoading,
 	inputRef,
+	onInputFocus,
+	onInputBlur,
 }: ChatFooterProps) {
 	const [inputValue, setInputValue] = React.useState("");
 	const [activeIndex, setActiveIndex] = React.useState(0);
@@ -79,6 +83,8 @@ export function ChatFooter({
 					isLoading={isLoading}
 					onValueChange={setInputValue}
 					onKeyDown={handleMenuKeyDown}
+					onFocus={onInputFocus}
+					onBlur={onInputBlur}
 					className="mx-0 max-w-none"
 				/>
 			</div>

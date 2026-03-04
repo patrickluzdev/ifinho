@@ -31,7 +31,6 @@ export interface MessageProps {
 	patternHandlers?: PatternHandler[];
 	className?: string;
 	contentClassName?: string; // Additional className for the content container
-	isStreaming?: boolean;
 }
 
 export function Message({
@@ -43,7 +42,6 @@ export function Message({
 	patternHandlers = [],
 	className,
 	contentClassName,
-	isStreaming = false,
 }: MessageProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editedContent, setEditedContent] = useState(content);
@@ -154,10 +152,9 @@ export function Message({
 		>
 			<div
 				className={cn(
-					"max-w-[90vw] sm:max-w-[70vw]",
 					sender === "user"
-						? "rounded-lg bg-primary text-primary-foreground"
-						: "",
+						? "max-w-[90vw] rounded-lg bg-primary text-primary-foreground sm:max-w-[80%]"
+						: "max-w-[90vw] sm:max-w-[70vw]",
 					contentClassName,
 				)}
 			>
@@ -205,7 +202,6 @@ export function Message({
 								sender === "user"
 									? "prose-invert prose-p:text-primary-foreground"
 									: "prose-neutral dark:prose-invert",
-								isStreaming && "streaming-cursor",
 							)}
 						>
 							<ReactMarkdown components={markdownComponents}>

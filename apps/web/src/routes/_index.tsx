@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { SLASH_COMMANDS } from "@/commands";
 import { ChatFooter } from "@/components/chat-footer";
 import type { ChatInputHandle } from "@/components/chat-input";
@@ -16,15 +16,8 @@ const SUGGESTIONS = [
 export default function Home() {
 	const chat = useChat();
 	const inputRef = useRef<ChatInputHandle>(null);
+	const [isInputFocused, setIsInputFocused] = useState(false);
 	const isEmpty = chat.messages.length === 0;
-
-	useEffect(() => {
-		inputRef.current?.focus();
-	}, []);
-
-	useEffect(() => {
-		if (!chat.isLoading) inputRef.current?.focus();
-	}, [chat.isLoading]);
 
 	const handleSuggestionClick = (text: string) => {
 		chat.handleSend(text);
@@ -81,6 +74,8 @@ export default function Home() {
 							onStopGeneration={chat.handleStop}
 							isLoading={chat.isLoading}
 							inputRef={inputRef}
+							onInputFocus={() => setIsInputFocused(true)}
+							onInputBlur={() => setIsInputFocused(false)}
 						/>
 					</div>
 				</main>
@@ -95,6 +90,7 @@ export default function Home() {
 				isLoading={chat.isLoading}
 				generationStage={chat.generationStage}
 				streamingMessageId={chat.streamingMessageId}
+				isInputFocused={isInputFocused}
 				patternHandlers={patternHandlers}
 				onEditMessage={chat.handleEdit}
 				onRetryMessage={chat.handleRetry}
@@ -107,6 +103,8 @@ export default function Home() {
 						onStopGeneration={chat.handleStop}
 						isLoading={chat.isLoading}
 						inputRef={inputRef}
+						onInputFocus={() => setIsInputFocused(true)}
+						onInputBlur={() => setIsInputFocused(false)}
 					/>
 				</div>
 			</div>
