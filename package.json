@@ -22,7 +22,6 @@
 	},
 	"dependencies": {
 		"@ifinho/env": "*",
-		"bullmq": "^5.70.1",
 		"dotenv": "^17.2.2",
 		"zod": "^4.1.13"
 	},

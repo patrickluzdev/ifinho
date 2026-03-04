@@ -40,6 +40,7 @@ services:
       - ifinho-network
 
   server:
+    server:
     container_name: ifinho-server
     build:
       context: .
@@ -51,10 +52,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ifinho-postgres:5432/${POSTGRES_DB}
       CORS_ORIGIN: http://localhost
       OLLAMA_BASE_URL: http://ifinho-ollama:11434
+      REDIS_URL: redis://ifinho-redis:6379
       NODE_ENV: production
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "3000:3000"
     networks:
