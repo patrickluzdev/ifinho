@@ -30,6 +30,15 @@ services:
     networks:
       - ifinho-network
 
+  redis:
+    container_name: ifinho-redis
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - ifinho-network
+
   server:
     container_name: ifinho-server
     build:
@@ -69,6 +78,7 @@ services:
 volumes:
   ifinho-postgres-data:
   ifinho-ollama-data:
+  ifinho-redis-data:
 
 networks:
   ifinho-network:

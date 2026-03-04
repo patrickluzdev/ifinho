@@ -1,6 +1,8 @@
 import { env } from "@ifinho/env/server";
 import cors from "cors";
 import express from "express";
+import { chatQueue } from "./queue";
+import "./worker";
 
 const app = express();
 
@@ -105,6 +107,14 @@ app.post("/api/chat", async (req, res) => {
 
 	res.write("data: [DONE]\n\n");
 	res.end();
+});
+
+app.post("/api/queue", async (req, res) => {
+	const { message } = req.body;
+
+	await chatQueue.add("chat-message", { message });
+
+	res.status(200).json({ ok: true });
 });
 
 app.listen(3000, () => {
