@@ -10,6 +10,7 @@ import {
 import type { Route } from "./+types/root";
 
 import "./index.css";
+import { ModeToggle } from "./components/mode-toggle";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "./components/ui/sonner";
 
@@ -52,10 +53,13 @@ export default function App() {
 	return (
 		<ThemeProvider
 			attribute="class"
-			defaultTheme="dark"
+			defaultTheme="light"
 			disableTransitionOnChange
 			storageKey="vite-ui-theme"
 		>
+			<div className="fixed top-4 right-6 z-50">
+				<ModeToggle />
+			</div>
 			<Outlet />
 			<Toaster richColors />
 		</ThemeProvider>
