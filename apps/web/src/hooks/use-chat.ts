@@ -19,44 +19,61 @@ export function useChat() {
 	const sendMessage = useCallback(
 		async (content: string, onDone?: () => void) => {
 			const msgId = (Date.now() + 1).toString();
-			setMessages((prev) => [
-				...prev,
-				{ id: msgId, content: "", sender: "assistant" },
-			]);
 			setGenerationStage("thinking");
-			setStreamingMessageId(msgId);
-
 			abortRef.current = new AbortController();
 
+			const sentAt = Date.now();
+
 			try {
-				let started = false;
+				let firstToken = true;
 				for await (const token of streamSSE(
 					`${SERVER_URL}/api/chat`,
 					{ message: content },
 					abortRef.current.signal,
 				)) {
-					if (!started) {
+					if (firstToken) {
+						const elapsed = Date.now() - sentAt;
+						const MIN_DELAY = 400;
+						if (elapsed < MIN_DELAY) {
+							await new Promise<void>((r) =>
+								setTimeout(r, MIN_DELAY - elapsed),
+							);
+						}
 						setGenerationStage("idle");
-						started = true;
+						setMessages((prev) => [
+							...prev,
+							{ id: msgId, content: token, sender: "assistant" },
+						]);
+						setStreamingMessageId(msgId);
+						firstToken = false;
+					} else {
+						setMessages((prev) =>
+							prev.map((msg) =>
+								msg.id === msgId
+									? { ...msg, content: msg.content + token }
+									: msg,
+							),
+						);
 					}
-					setMessages((prev) =>
-						prev.map((msg) =>
-							msg.id === msgId ? { ...msg, content: msg.content + token } : msg,
-						),
-					);
 				}
 			} catch (err) {
 				if ((err as Error).name === "AbortError") return;
-				setMessages((prev) =>
-					prev.map((msg) =>
-						msg.id === msgId
-							? {
-									...msg,
-									content: "Erro ao conectar com o servidor. Tente novamente.",
-								}
-							: msg,
-					),
-				);
+				const isHttpError = (err as Error).message.startsWith("HTTP");
+				const errorContent = isHttpError
+					? "## 🔌 Servidor indisponível\n\nNão foi possível conectar com o servidor no momento.\n\nVerifique sua conexão e tente novamente."
+					: "## 😔 Algo deu errado\n\nNão consegui gerar uma resposta agora.\n\nTente novamente em alguns instantes. Se o problema persistir, verifique se o serviço está funcionando normalmente.";
+				setMessages((prev) => {
+					const exists = prev.some((m) => m.id === msgId);
+					if (exists) {
+						return prev.map((msg) =>
+							msg.id === msgId ? { ...msg, content: errorContent } : msg,
+						);
+					}
+					return [
+						...prev,
+						{ id: msgId, content: errorContent, sender: "assistant" },
+					];
+				});
 			} finally {
 				abortRef.current = null;
 				setStreamingMessageId(null);
@@ -76,9 +93,6 @@ export function useChat() {
 		};
 		setMessages((prev) => [...prev, userMessage]);
 		setIsLoading(true);
-		// Defer to next task so React renders the user message first,
-		// allowing the scroll-to-user-message effect to fire before the
-		// assistant message is added to state.
 		setTimeout(() => sendMessage(content), 0);
 	};
 

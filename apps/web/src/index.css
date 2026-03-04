@@ -128,18 +128,8 @@
 	}
 }
 
-@keyframes blink {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0; }
-}
-
-.streaming-cursor::after {
-	content: "▋";
-	display: inline-block;
-	animation: blink 0.8s step-start infinite;
-	margin-left: 1px;
-	font-size: 0.85em;
-	vertical-align: middle;
-	color: currentColor;
-	opacity: 0.7;
+/* Remove backtick pseudo-elements added by @tailwindcss/typography */
+.prose code::before,
+.prose code::after {
+	content: none;
 }

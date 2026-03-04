@@ -21,8 +21,8 @@ interface MessageListProps {
 	onRetryMessage: (id: string) => void;
 	onRegenerateMessage: (id: string) => void;
 	onFeedback?: (id: string, type: "like" | "dislike") => void;
-	lastUserMessageRef?: RefObject<HTMLDivElement | null>;
 	streamingMessageId?: string | null;
+	lastUserMessageRef?: RefObject<HTMLDivElement | null>;
 }
 
 export function MessageList({
@@ -34,8 +34,8 @@ export function MessageList({
 	onRetryMessage,
 	onRegenerateMessage,
 	onFeedback,
-	lastUserMessageRef,
 	streamingMessageId,
+	lastUserMessageRef,
 }: MessageListProps) {
 	const [metadataVisible, setMetadataVisible] = useState<
 		Record<string, boolean>
@@ -53,7 +53,6 @@ export function MessageList({
 		setTimeout(() => setCopying(null), 1000);
 	};
 
-	// Index of the last user message in the list
 	let lastUserIndex = -1;
 	for (let i = messages.length - 1; i >= 0; i--) {
 		if (messages[i].sender === "user") {
@@ -65,8 +64,9 @@ export function MessageList({
 	return (
 		<div className="space-y-8 p-4">
 			{messages.map((message, index) => {
+				const isStreaming = message.id === streamingMessageId;
 				const actionButtons =
-					message.sender === "assistant"
+					message.sender === "assistant" && !isStreaming
 						? [
 								{
 									id: "info",
@@ -105,25 +105,29 @@ export function MessageList({
 									title: "Não útil",
 								},
 							]
-						: [
-								{
-									id: "retry",
-									icon: <RotateCcw size={14} />,
-									onClick: () => onRetryMessage(message.id),
-									title: "Reenviar mensagem",
-								},
-								{
-									id: "copy",
-									icon: (
-										<Copy
-											size={14}
-											className={copying === message.id ? "text-green-500" : ""}
-										/>
-									),
-									onClick: () => handleCopy(message.id, message.content),
-									title: "Copiar mensagem",
-								},
-							];
+						: !streamingMessageId
+							? [
+									{
+										id: "retry",
+										icon: <RotateCcw size={14} />,
+										onClick: () => onRetryMessage(message.id),
+										title: "Reenviar mensagem",
+									},
+									{
+										id: "copy",
+										icon: (
+											<Copy
+												size={14}
+												className={
+													copying === message.id ? "text-green-500" : ""
+												}
+											/>
+										),
+										onClick: () => handleCopy(message.id, message.content),
+										title: "Copiar mensagem",
+									},
+								]
+							: [];
 
 				return (
 					<div
@@ -140,7 +144,6 @@ export function MessageList({
 							patternHandlers={
 								message.sender === "assistant" ? patternHandlers : undefined
 							}
-							isStreaming={message.id === streamingMessageId}
 						/>
 						{message.sender === "assistant" &&
 							message.metadata &&

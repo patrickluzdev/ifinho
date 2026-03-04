@@ -57,6 +57,7 @@ export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(
 				onSend(input.trim());
 				setInput("");
 				onValueChange?.("");
+				textareaRef.current?.blur();
 			},
 			[input, isLoading, onSend, onValueChange],
 		);
@@ -70,7 +71,6 @@ export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(
 			}
 		};
 
-		// Auto-resize reativo ao input
 		// biome-ignore lint/correctness/useExhaustiveDependencies: input is the intended trigger for auto-resize
 		React.useEffect(() => {
 			const textarea = textareaRef.current;

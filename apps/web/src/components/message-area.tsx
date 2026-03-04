@@ -22,6 +22,7 @@ interface MessageAreaProps {
 	onRegenerateMessage: (id: string) => void;
 	onFeedback?: (id: string, type: "like" | "dislike") => void;
 	streamingMessageId?: string | null;
+	isInputFocused: boolean;
 }
 
 export function MessageArea({
@@ -34,34 +35,24 @@ export function MessageArea({
 	onRegenerateMessage,
 	onFeedback,
 	streamingMessageId,
+	isInputFocused,
 }: MessageAreaProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const lastUserMessageRef = useRef<HTMLDivElement>(null);
 	const spacerRef = useRef<HTMLDivElement>(null);
+	const userScrolledUpRef = useRef(false);
 	const [showScrollButton, setShowScrollButton] = useState(false);
 
-	const isViewingOldMessages = useCallback(() => {
+	const scrollToBottom = useCallback(() => {
 		const container = scrollRef.current;
-		const lastUserMsg = lastUserMessageRef.current;
-		if (!container || !lastUserMsg) return false;
-		const containerRect = container.getBoundingClientRect();
-		const msgRect = lastUserMsg.getBoundingClientRect();
-		return msgRect.bottom < containerRect.top;
+		const spacer = spacerRef.current;
+		if (!container || !spacer) return;
+		const contentHeight = container.scrollHeight - spacer.offsetHeight;
+		const target = Math.max(0, contentHeight - container.clientHeight + 16);
+		container.scrollTo({ top: target, behavior: "smooth" });
+		userScrolledUpRef.current = false;
 	}, []);
 
-	const scrollToLastUserMessage = useCallback(() => {
-		const container = scrollRef.current;
-		const lastUserMsg = lastUserMessageRef.current;
-		if (!container || !lastUserMsg) return;
-		const containerRect = container.getBoundingClientRect();
-		const msgRect = lastUserMsg.getBoundingClientRect();
-		const scrollAmount = msgRect.top - containerRect.top - 16;
-		container.scrollBy({ top: scrollAmount, behavior: "smooth" });
-	}, []);
-
-	// Before paint: set spacer so user message can scroll to top while waiting.
-	// Keep it large while streaming to prevent layout shift that would push
-	// the user message away from the top. Collapse only when fully done.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional
 	useLayoutEffect(() => {
 		const container = scrollRef.current;
@@ -79,56 +70,107 @@ export function MessageArea({
 			);
 			spacer.style.height = `${needed}px`;
 		} else {
-			// Read user message position BEFORE changing the spacer height so the
-			// layout is still in its current (large-spacer) state. This gives the
-			// true absolute offset of the message within the scroll content.
-			const msgAbsoluteTop = lastUserMsg
-				? lastUserMsg.getBoundingClientRect().top -
-					container.getBoundingClientRect().top +
-					container.scrollTop
-				: null;
-
-			if (msgAbsoluteTop !== null) {
-				const desiredScrollTop = Math.max(0, msgAbsoluteTop - 16);
-				// Compute the minimum spacer to keep desiredScrollTop achievable
-				// after collapsing. A short response would shrink scrollHeight below
-				// desiredScrollTop + clientHeight, clamping scrollTop upward and
-				// revealing older messages above the user's message.
-				const contentWithoutSpacer =
-					container.scrollHeight - spacer.offsetHeight;
-				const neededSpacer = Math.max(
-					128,
-					desiredScrollTop + container.clientHeight - contentWithoutSpacer,
-				);
-				spacer.style.height = `${neededSpacer}px`;
-				container.scrollTop = desiredScrollTop;
-			} else {
-				spacer.style.height = "128px";
-			}
+			const currentScrollTop = container.scrollTop;
+			const contentWithoutSpacer = container.scrollHeight - spacer.offsetHeight;
+			const neededSpacer =
+				currentScrollTop > 0
+					? Math.max(
+							0,
+							currentScrollTop + container.clientHeight - contentWithoutSpacer,
+						)
+					: 0;
+			spacer.style.height = `${neededSpacer}px`;
 		}
 	}, [messages.length, streamingMessageId]);
 
-	// After paint: scroll ONLY when the user sends (last message is from user)
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional
 	useEffect(() => {
 		if (messages.length === 0) return;
 		const lastMessage = messages[messages.length - 1];
 		if (lastMessage.sender !== "user") return;
 
+		userScrolledUpRef.current = false;
+
 		requestAnimationFrame(() => {
 			const container = scrollRef.current;
 			const lastUserMsg = lastUserMessageRef.current;
 			if (!container || !lastUserMsg) return;
-
 			const containerRect = container.getBoundingClientRect();
 			const msgRect = lastUserMsg.getBoundingClientRect();
-			const scrollAmount = msgRect.top - containerRect.top - 16;
-			container.scrollBy({ top: scrollAmount, behavior: "smooth" });
+			container.scrollBy({
+				top: msgRect.top - containerRect.top - 16,
+				behavior: "smooth",
+			});
 		});
 	}, [messages.length]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: messages triggers on every token
+	useEffect(() => {
+		if (!streamingMessageId || userScrolledUpRef.current) return;
+		const container = scrollRef.current;
+		const spacer = spacerRef.current;
+		const lastUserMsg = lastUserMessageRef.current;
+		if (!container || !spacer) return;
+
+		const contentHeight = container.scrollHeight - spacer.offsetHeight;
+		const terminalScroll = Math.max(
+			0,
+			contentHeight - container.clientHeight + 16,
+		);
+
+		const userMsgFloor = lastUserMsg
+			? Math.max(
+					0,
+					lastUserMsg.getBoundingClientRect().top -
+						container.getBoundingClientRect().top +
+						container.scrollTop -
+						16,
+				)
+			: 0;
+
+		container.scrollTop = Math.max(userMsgFloor, terminalScroll);
+	}, [messages, streamingMessageId]);
+
 	const handleScroll = () => {
-		setShowScrollButton(isViewingOldMessages());
+		const container = scrollRef.current;
+		const spacer = spacerRef.current;
+		const lastUserMsg = lastUserMessageRef.current;
+		if (streamingMessageId && container && spacer && spacer.offsetHeight > 0) {
+			const contentHeight = container.scrollHeight - spacer.offsetHeight;
+			const terminalScroll = Math.max(
+				0,
+				contentHeight - container.clientHeight + 16,
+			);
+
+			const userMsgFloor = lastUserMsg
+				? Math.max(
+						0,
+						lastUserMsg.getBoundingClientRect().top -
+							container.getBoundingClientRect().top +
+							container.scrollTop -
+							16,
+					)
+				: 0;
+
+			const effectiveCeil = Math.max(terminalScroll, userMsgFloor);
+
+			userScrolledUpRef.current = container.scrollTop < effectiveCeil - 10;
+
+			if (container.scrollTop > effectiveCeil) {
+				container.scrollTop = effectiveCeil;
+			}
+
+			setShowScrollButton(userScrolledUpRef.current);
+			return;
+		}
+
+		if (!container || !spacer) return;
+		const contentHeight = container.scrollHeight - spacer.offsetHeight;
+		const contentBottom = Math.max(
+			0,
+			contentHeight - container.clientHeight + 16,
+		);
+		setShowScrollButton(container.scrollTop < contentBottom - 50);
 	};
 
 	return (
@@ -138,7 +180,7 @@ export function MessageArea({
 				className={cn("h-full overflow-y-auto")}
 				onScroll={handleScroll}
 			>
-				<div className="mx-auto max-w-3xl">
+				<div className="mx-auto max-w-3xl pb-40">
 					<MessageList
 						messages={messages}
 						isLoading={isLoading}
@@ -162,7 +204,7 @@ export function MessageArea({
 						size="sm"
 						variant="outline"
 						className="h-8 w-8 rounded-full p-0 shadow-md"
-						onClick={scrollToLastUserMessage}
+						onClick={scrollToBottom}
 					>
 						<ArrowDown size={14} />
 						<span className="sr-only">Ir para o final</span>

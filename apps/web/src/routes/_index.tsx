@@ -1,6 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
+import { SLASH_COMMANDS } from "@/commands";
 import { ChatFooter } from "@/components/chat-footer";
 import type { ChatInputHandle } from "@/components/chat-input";
+import type { PatternHandler } from "@/components/message";
 import { MessageArea } from "@/components/message-area";
 import { useChat } from "@/hooks/use-chat";
 
@@ -14,19 +16,33 @@ const SUGGESTIONS = [
 export default function Home() {
 	const chat = useChat();
 	const inputRef = useRef<ChatInputHandle>(null);
+	const [isInputFocused, setIsInputFocused] = useState(false);
 	const isEmpty = chat.messages.length === 0;
-
-	useEffect(() => {
-		inputRef.current?.focus();
-	}, []);
-
-	useEffect(() => {
-		if (!chat.isLoading) inputRef.current?.focus();
-	}, [chat.isLoading]);
 
 	const handleSuggestionClick = (text: string) => {
 		chat.handleSend(text);
 	};
+
+	const patternHandlers = useMemo<PatternHandler[]>(
+		() => [
+			{
+				pattern: new RegExp(
+					`\\/(${SLASH_COMMANDS.map((c) => c.command.slice(1)).join("|")})(?!\\w)`,
+					"g",
+				),
+				render: (match) => (
+					<button
+						type="button"
+						onClick={() => chat.handleSend(match[0])}
+						className="inline cursor-pointer rounded bg-[#03316f]/10 px-1 py-0.5 font-mono text-[#03316f] text-sm transition-colors hover:bg-[#03316f]/20 dark:bg-[#03316f]/30 dark:text-[#6ea8d8] dark:hover:bg-[#03316f]/40"
+					>
+						{match[0]}
+					</button>
+				),
+			},
+		],
+		[chat.handleSend],
+	);
 
 	if (isEmpty) {
 		return (
@@ -58,6 +74,8 @@ export default function Home() {
 							onStopGeneration={chat.handleStop}
 							isLoading={chat.isLoading}
 							inputRef={inputRef}
+							onInputFocus={() => setIsInputFocused(true)}
+							onInputBlur={() => setIsInputFocused(false)}
 						/>
 					</div>
 				</main>
@@ -72,6 +90,8 @@ export default function Home() {
 				isLoading={chat.isLoading}
 				generationStage={chat.generationStage}
 				streamingMessageId={chat.streamingMessageId}
+				isInputFocused={isInputFocused}
+				patternHandlers={patternHandlers}
 				onEditMessage={chat.handleEdit}
 				onRetryMessage={chat.handleRetry}
 				onRegenerateMessage={chat.handleRegenerate}
@@ -83,6 +103,8 @@ export default function Home() {
 						onStopGeneration={chat.handleStop}
 						isLoading={chat.isLoading}
 						inputRef={inputRef}
+						onInputFocus={() => setIsInputFocused(true)}
+						onInputBlur={() => setIsInputFocused(false)}
 					/>
 				</div>
 			</div>
