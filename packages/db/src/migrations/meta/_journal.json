@@ -36,6 +36,13 @@
 			"when": 1772800001000,
 			"tag": "0004_sources_url_unique",
 			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1772800002000,
+			"tag": "0005_fix_sources_url_unique_index",
+			"breakpoints": true
 		}
 	]
 }

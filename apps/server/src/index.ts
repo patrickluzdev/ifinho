@@ -181,15 +181,36 @@ app.post("/api/chat", async (req, res) => {
 	}
 });
 
-console.log("Running database migrations...");
-await migrate(db, {
-	migrationsFolder: join(
-		fileURLToPath(
-			new URL("../../../packages/db/src/migrations", import.meta.url),
-		),
+const migrationsFolder = join(
+	fileURLToPath(
+		new URL("../../../packages/db/src/migrations", import.meta.url),
 	),
-});
-console.log("Migrations applied.");
+);
+console.log(`[migrations] Running from: ${migrationsFolder}`);
+
+const { rows: before } = await db.execute<{ hash: string }>(
+	sql`SELECT hash FROM drizzle.__drizzle_migrations ORDER BY created_at`,
+);
+const appliedBefore = new Set(before.map((r) => r.hash));
+
+await migrate(db, { migrationsFolder });
+
+const { rows: after } = await db.execute<{ hash: string }>(
+	sql`SELECT hash FROM drizzle.__drizzle_migrations ORDER BY created_at`,
+);
+
+const newlyApplied = after
+	.map((r) => r.hash)
+	.filter((h) => !appliedBefore.has(h));
+
+if (newlyApplied.length === 0) {
+	console.log("[migrations] No new migrations to apply.");
+} else {
+	for (const hash of newlyApplied) {
+		console.log(`[migrations] Applied: ${hash}`);
+	}
+}
+console.log(`[migrations] Done. Total applied: ${after.length}`);
 
 app.listen(3000, () => {
 	console.log("Server is running on http://localhost:3000");
