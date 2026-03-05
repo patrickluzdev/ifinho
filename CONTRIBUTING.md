@@ -15,6 +15,7 @@ Obrigado por querer contribuir! O Ifinho é o assistente virtual do IFRS Campus 
 - [Fluxo de contribuição](#fluxo-de-contribuição)
 - [Padrão de commits](#padrão-de-commits)
 - [Estrutura do projeto](#estrutura-do-projeto)
+- [Criando um novo scraper](#criando-um-novo-scraper)
 
 ---
 
@@ -219,15 +220,369 @@ Use o padrão [Conventional Commits](https://www.conventionalcommits.org/pt-br/v
 ifinho/
 ├── apps/
 │   ├── web/        # Frontend (React + React Router + TailwindCSS + shadcn/ui)
-│   └── server/     # Backend (Express + Ollama)
+│   ├── server/     # Backend (Express + Ollama)
+│   └── worker/     # Worker de scraping (pg-boss + pipeline)
 ├── packages/
 │   ├── db/         # Schema e queries do banco (Drizzle + PostgreSQL)
+│   ├── scraper/    # Engine de scraping (plugins + pipeline)
 │   ├── env/        # Validação de variáveis de ambiente (Zod)
 │   ├── http/       # Cliente HTTP compartilhado
 │   └── config/     # Configurações compartilhadas (TypeScript, Biome)
 ├── docker-compose.yml
 └── package.json    # Monorepo root (npm workspaces)
 ```
+
+---
+
+## Criando um novo scraper
+
+Uma das formas mais valiosas de contribuir é adicionar scrapers para novas fontes de conteúdo do IFRS Canoas (editais, calendários, PDFs, etc).
+
+### Como funciona a arquitetura
+
+```
+scrape_configs (banco)
+      │
+      ▼
+  Scheduler (worker) — verifica configs vencidas a cada 15 min
+      │
+      ▼
+  ScraperRunner
+      │
+      ├── Plugin (seu scraper) → AsyncGenerator<ScrapeResult>
+      │
+      └── Pipeline (fixo, igual para todos)
+            ├── SanitizeStep    — normaliza o texto
+            ├── HashCheckStep   — ignora conteúdo que não mudou
+            ├── PersistStep     — salva no banco (sources + documents)
+            └── EmbedStep       — gera embedding vetorial para busca semântica
+```
+
+O plugin é responsável apenas por **buscar e parsear** o conteúdo. O pipeline cuida do resto automaticamente.
+
+---
+
+### Passo 1 — Entender a anatomia de um plugin
+
+Um plugin vive em `packages/scraper/src/plugins/<nome>/` e tem sempre a mesma estrutura:
+
+```
+plugins/
+└── news/                  ← nome do plugin (mesmo valor que Scraper.id)
+    ├── index.ts           ← classe principal — orquestra o scraping
+    └── pages/
+        ├── list.ts        ← Page Object da página de listagem
+        └── detail.ts      ← Page Object da página de detalhe
+```
+
+#### `index.ts` — a classe principal
+
+É a única parte obrigatória. Implementa a interface `Scraper`:
+
+```typescript
+export interface Scraper {
+  readonly id: string;                              // ex: "news", "edital"
+  run(request: ScrapeRequest): AsyncGenerator<ScrapeResult>;
+}
+```
+
+O método `run` é um **async generator**: ele não retorna uma lista, mas vai `yield`ando cada item conforme os processa. Isso permite que o pipeline comece a persistir resultados antes do scraping terminar.
+
+```typescript
+// Fluxo típico do index.ts
+async *run(request: ScrapeRequest): AsyncGenerator<ScrapeResult> {
+  // 1. Busca a página de listagem
+  const html = await this.fetcher.get(request.startUrl);
+
+  // 2. Usa o Page Object da lista para extrair links e navegar páginas
+  const listPage = new NewsListPage(cheerio.load(html));
+  const items = listPage.extractItems();
+
+  // 3. Para cada item, busca e extrai o conteúdo da página de detalhe
+  for (const item of items) {
+    const detailHtml = await this.fetcher.get(item.url);
+    const detailPage = new NewsDetailPage(cheerio.load(detailHtml));
+
+    // 4. Yield do resultado — o pipeline recebe e processa imediatamente
+    yield {
+      url: item.url,
+      title: detailPage.extractTitle(),
+      rawText: detailPage.extractContent(),
+      contentHash: crypto.createHash("md5").update(rawText).digest("hex"),
+      category: "noticia",
+      sourceType: "webpage",
+    };
+  }
+}
+```
+
+**O `Fetcher`** é injetado via construtor e deve ser sempre usado no lugar de `fetch`/`axios` diretamente. Ele aplica rate limiting automático (delay configurável entre requisições) e define o User-Agent do bot:
+
+```typescript
+constructor(private fetcher: Fetcher) {}
+
+// ✅ correto
+const html = await this.fetcher.get(url);
+
+// ❌ nunca faça isso dentro de um plugin
+const html = await fetch(url).then(r => r.text());
+```
+
+---
+
+#### `pages/list.ts` — Page Object da listagem
+
+Responsável por parsear a página que lista os itens (ex: página de notícias com cards). Não faz requisições — recebe o `CheerioAPI` já carregado do `index.ts`.
+
+Deve expor dois métodos:
+- `extractItems()` → retorna os links e metadados básicos dos cards
+- `nextPageUrl()` → retorna a URL da próxima página, ou `null` se não houver
+
+```typescript
+export class NewsListPage {
+  constructor(private $: CheerioAPI) {}
+
+  extractItems(): NewsListItem[] {
+    const items: NewsListItem[] = [];
+
+    this.$("article.noticia").each((_, el) => {
+      const url = this.$(el).find("a.noticia__link").attr("href") ?? "";
+      if (!url) return;
+
+      items.push({
+        url,
+        title: this.$(el).find("h2.noticia__titulo").text().trim(),
+        publishedAt: parsePtDate(this.$(el).find("span.noticia__data").text()),
+      });
+    });
+
+    return items;
+  }
+
+  nextPageUrl(): string | null {
+    return this.$("a.next.page-link").attr("href") ?? null;
+  }
+}
+```
+
+> Os **seletores CSS** (`article.noticia`, `a.noticia__link`, etc.) são específicos de cada site. Inspecione o HTML da página alvo com o DevTools do navegador para descobrir os corretos.
+
+---
+
+#### `pages/detail.ts` — Page Object do detalhe
+
+Responsável por parsear a página individual de cada item. Também recebe o `CheerioAPI` pronto.
+
+Deve expor os métodos necessários para extrair os dados do `ScrapeResult`:
+
+```typescript
+export class NewsDetailPage {
+  constructor(private $: CheerioAPI) {}
+
+  extractTitle(): string {
+    return this.$("h2.post__title").first().text().trim();
+  }
+
+  extractDate(): Date | undefined {
+    const content = this.$('meta[property="article:published_time"]').attr("content");
+    return content ? new Date(content) : undefined;
+  }
+
+  extractContent(): string {
+    const $content = this.$("div.post__content").first().clone();
+    // Remove elementos que poluem o texto (scripts, iframes, widgets)
+    $content.find("script, iframe, style, .ultimos-posts, figcaption").remove();
+    return $content.text().replace(/\s+/g, " ").trim();
+  }
+}
+```
+
+> Sempre use `.clone()` antes de remover elementos para não mutar o DOM original. O `replace(/\s+/g, " ").trim()` é importante para normalizar espaços e quebras de linha do HTML.
+
+---
+
+#### Quando usar pages/ e quando não usar
+
+As classes `pages/` são uma convenção para manter o código organizado, não uma obrigação técnica.
+
+| Situação | Recomendação |
+|----------|-------------|
+| Site com listagem + página de detalhe | Use `list.ts` + `detail.ts` |
+| Página única com todo o conteúdo | Pode parsear direto no `index.ts` |
+| Muitas variações de página | Crie arquivos separados por tipo |
+| Plugin muito simples (1 página, 1 item) | Tudo no `index.ts` é ok |
+
+---
+
+#### O `ScrapeResult` — o que cada campo significa
+
+```typescript
+export interface ScrapeResult {
+  url: string;
+  // URL canônica e permanente do conteúdo. Usada como chave de deduplicação
+  // no banco — dois itens com a mesma URL são tratados como o mesmo documento.
+
+  title: string;
+  // Título legível do documento. Aparece nas respostas do chat como referência.
+
+  rawText: string;
+  // Texto puro extraído, sem nenhuma tag HTML.
+  // É esse texto que será dividido em chunks e indexado vetorialmente.
+  // Quanto mais limpo e relevante, melhor a qualidade das respostas do Ifinho.
+
+  contentHash: string;
+  // MD5 do rawText. O HashCheckStep compara com o hash salvo anteriormente —
+  // se for igual, o item é descartado e não reprocessado.
+  // Sempre gere assim: crypto.createHash("md5").update(rawText).digest("hex")
+
+  category: SourceCategory;
+  // Classificação do conteúdo. Valores disponíveis definidos no enum do banco.
+  // Ex: "noticia", "edital", "documento"
+
+  sourceType: SourceType;
+  // Tipo da fonte. Ex: "webpage" para páginas HTML, "pdf" para arquivos PDF.
+
+  publishedAt?: Date;
+  // Data de publicação, quando disponível. Opcional.
+
+  metadata?: Record<string, unknown>;
+  // Dados extras que não cabem nos campos acima. Opcional.
+}
+```
+
+---
+
+### Passo 2 — Criar o plugin
+
+Com a estrutura clara, crie os arquivos:
+
+```
+packages/scraper/src/plugins/edital/
+├── index.ts
+└── pages/
+    ├── list.ts
+    └── detail.ts
+```
+
+Exemplo de `index.ts` completo:
+
+```typescript
+import crypto from "node:crypto";
+import * as cheerio from "cheerio";
+import type { Fetcher } from "../../core/fetcher.js";
+import type { ScrapeRequest, ScrapeResult, Scraper } from "../../core/types.js";
+import { EditalListPage } from "./pages/list.js";
+import { EditalDetailPage } from "./pages/detail.js";
+
+export class EditalScraper implements Scraper {
+  readonly id = "edital";
+
+  constructor(private fetcher: Fetcher) {}
+
+  async *run(request: ScrapeRequest): AsyncGenerator<ScrapeResult> {
+    const { startUrl, options } = request;
+    const maxPages = options.maxPages ?? 3;
+
+    let listUrl: string | null = startUrl;
+    let page = 1;
+
+    while (listUrl !== null && page <= maxPages) {
+      const html = await this.fetcher.get(listUrl);
+      const $ = cheerio.load(html);
+      const listPage = new EditalListPage($);
+
+      for (const item of listPage.extractItems()) {
+        try {
+          const detailHtml = await this.fetcher.get(item.url);
+          const detailPage = new EditalDetailPage(cheerio.load(detailHtml));
+
+          const rawText = detailPage.extractContent();
+          if (!rawText) continue;
+
+          yield {
+            url: item.url,
+            title: detailPage.extractTitle() || item.title,
+            rawText,
+            contentHash: crypto.createHash("md5").update(rawText).digest("hex"),
+            category: "edital",
+            sourceType: "webpage",
+          };
+        } catch (err) {
+          console.error(`[EditalScraper] Failed to scrape ${item.url}:`, err);
+        }
+      }
+
+      listUrl = listPage.nextPageUrl();
+      page++;
+    }
+  }
+}
+```
+
+> Use `this.fetcher.get(url)` em vez de `fetch` diretamente — o `Fetcher` aplica delay entre requisições para não sobrecarregar o servidor.
+
+---
+
+### Passo 3 — Registrar o plugin no worker
+
+Abra `apps/worker/src/index.ts` e adicione o novo plugin ao `Map`:
+
+```typescript
+// antes
+const plugins = new Map([
+  ["news", new NewsScraper(new Fetcher({ delayMs: 1500 }))],
+]);
+
+// depois
+const plugins = new Map([
+  ["news",   new NewsScraper(new Fetcher({ delayMs: 1500 }))],
+  ["edital", new EditalScraper(new Fetcher({ delayMs: 1500 }))],
+]);
+```
+
+---
+
+### Passo 4 — Criar o `scrape_config` no banco
+
+Com o worker rodando, insira uma configuração para o novo scraper:
+
+```sql
+INSERT INTO scrape_configs (id, name, plugin_id, category, base_url, options, priority, check_interval_minutes, enabled)
+VALUES (
+  gen_random_uuid(),
+  'IFRS Canoas — Editais',  -- nome legível
+  'edital',                 -- deve bater com Scraper.id
+  'edital',                 -- categoria (enum: noticia, edital, documento, ...)
+  'https://ifrs.edu.br/canoas/editais/',
+  '{"maxPages": 3}',        -- opções passadas para ScrapeRequest.options
+  5,                        -- prioridade (1 = mais alta)
+  1440,                     -- intervalo em minutos (1440 = 24h)
+  true
+);
+```
+
+O worker vai detectar a nova config no próximo ciclo (até 15 min) e iniciar o scraping automaticamente.
+
+---
+
+### Passo 5 — Exportar o plugin do pacote
+
+Abra `packages/scraper/src/index.ts` e adicione a exportação:
+
+```typescript
+export { EditalScraper } from "./plugins/edital/index.js";
+```
+
+---
+
+### Dicas de implementação
+
+- **Use `cheerio`** para parsear HTML — já é dependência do pacote
+- **Inspecione o HTML** da página alvo com DevTools antes de escrever os seletores
+- **Separe list page e detail page** em classes distintas quando a fonte tiver paginação (veja `plugins/news/pages/` como referência)
+- **Retorne `null` / pule** itens sem conteúdo relevante — o pipeline ignora automaticamente
+- **O `contentHash`** deve ser MD5 do `rawText` — o `HashCheckStep` usa isso para evitar reprocessar conteúdo que não mudou
+- **Não se preocupe** com persistência, embeddings ou deduplicação — o pipeline cuida de tudo
 
 ---
 

@@ -84,10 +84,12 @@ interface ChunkRow extends Record<string, unknown> {
 }
 
 async function retrieveContext(question: string): Promise<string> {
+	const t0 = Date.now();
 	const { embeddings } = await ollama.embed({
 		model: env.OLLAMA_EMBED_MODEL,
 		input: question,
 	});
+	console.log(`[chat] embed: ${Date.now() - t0}ms`);
 
 	const embedding = embeddings[0];
 	if (!embedding) return "";
@@ -96,6 +98,7 @@ async function retrieveContext(question: string): Promise<string> {
 
 	const CHUNK_MAX_CHARS = 500;
 
+	const t1 = Date.now();
 	const result = await db.execute<ChunkRow>(sql`
 		SELECT c.content, s.title, s.url,
 			1 - (c.embedding <=> CAST(${vectorStr} AS vector)) AS similarity
@@ -108,6 +111,10 @@ async function retrieveContext(question: string): Promise<string> {
 		ORDER BY c.embedding <=> CAST(${vectorStr} AS vector)
 		LIMIT 3
 	`);
+	console.log(
+		`[chat] vector search: ${Date.now() - t1}ms — ${result.rows.length} chunks`,
+	);
+
 	if (result.rows.length === 0) return "";
 
 	return result.rows
@@ -148,12 +155,16 @@ app.post("/api/chat", async (req, res) => {
 	}
 
 	try {
+		const tReq = Date.now();
+		console.log(`[chat] request: "${trimmed.slice(0, 60)}"`);
+
 		const context = await retrieveContext(trimmed);
 
 		const systemPrompt = context
 			? `${SYSTEM_PROMPT}\n\n## Informações relevantes encontradas na base de dados do IFRS Canoas:\n\n${context}\n\nUse as informações acima para responder. Se a resposta não estiver no contexto, diga que não encontrou informação sobre isso nos documentos disponíveis.`
 			: SYSTEM_PROMPT;
 
+		const tLlm = Date.now();
 		const stream = await ollama.chat({
 			model: env.OLLAMA_MODEL,
 			stream: true,
@@ -162,6 +173,7 @@ app.post("/api/chat", async (req, res) => {
 				{ role: "user", content: trimmed },
 			],
 		});
+		console.log(`[chat] llm first token: ${Date.now() - tLlm}ms`);
 
 		for await (const chunk of stream) {
 			const token = chunk.message.content;
@@ -170,6 +182,7 @@ app.post("/api/chat", async (req, res) => {
 			}
 		}
 
+		console.log(`[chat] total: ${Date.now() - tReq}ms`);
 		res.write("data: [DONE]\n\n");
 		res.end();
 	} catch (error) {
