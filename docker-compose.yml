@@ -48,6 +48,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - ifinho-network
 
@@ -65,7 +71,7 @@ services:
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       NODE_ENV: production
     depends_on:
-      postgres:
+      server:
         condition: service_healthy
     networks:
       - ifinho-network
