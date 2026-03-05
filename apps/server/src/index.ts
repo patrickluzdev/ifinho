@@ -1,8 +1,10 @@
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { db } from "@ifinho/db";
 import { env } from "@ifinho/env/server";
 import type { ChatRequest } from "@ifinho/types";
 import cors from "cors";
+import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import express from "express";
 import { Ollama } from "ollama";
@@ -66,11 +68,58 @@ Estou em desenvolvimento! Em breve estarei totalmente integrado com todos os doc
 };
 
 const SYSTEM_PROMPT = `Você é o Ifinho, assistente virtual do IFRS Campus Canoas.
-Responda sempre em português, de forma clara e objetiva, usando Markdown para formatar suas respostas (títulos, listas, negrito quando fizer sentido). Use emojis com frequência para deixar as respostas mais visuais e amigáveis — em títulos, itens de lista, destaques e no início de seções.`;
+Responda sempre em português, de forma clara e objetiva, usando Markdown para formatar suas respostas (títulos, listas, negrito quando fizer sentido).
+Use emojis com frequência para deixar as respostas mais visuais e amigáveis — em títulos, itens de lista, destaques e no início de seções. Cada item de lista deve ter um emoji relevante.
+Ao citar fontes, mantenha os links Markdown exatamente como aparecem no contexto, no formato [texto](url).`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const ollama = new Ollama({ host: env.OLLAMA_BASE_URL });
+
+interface ChunkRow extends Record<string, unknown> {
+	content: string;
+	title: string | null;
+	url: string | null;
+	similarity: number;
+}
+
+async function retrieveContext(question: string): Promise<string> {
+	const { embeddings } = await ollama.embed({
+		model: env.OLLAMA_EMBED_MODEL,
+		input: question,
+	});
+
+	const embedding = embeddings[0];
+	if (!embedding) return "";
+
+	const vectorStr = `[${embedding.join(",")}]`;
+
+	const CHUNK_MAX_CHARS = 500;
+
+	const result = await db.execute<ChunkRow>(sql`
+		SELECT c.content, s.title, s.url,
+			1 - (c.embedding <=> CAST(${vectorStr} AS vector)) AS similarity
+		FROM chunks c
+		JOIN documents d ON d.id = c.document_id
+		JOIN sources s ON s.id = d.source_id
+		WHERE c.is_active = true
+			AND c.embedding IS NOT NULL
+			AND s.status = 'indexed'
+		ORDER BY c.embedding <=> CAST(${vectorStr} AS vector)
+		LIMIT 3
+	`);
+	if (result.rows.length === 0) return "";
+
+	return result.rows
+		.map((r) => {
+			const title = r.title ?? "Sem título";
+			const url = r.url ?? "";
+			const source = url ? `[${title}](${url})` : title;
+			const content = r.content.slice(0, CHUNK_MAX_CHARS);
+			return `**${title}**\nFonte: ${source}\n\n${content}`;
+		})
+		.join("\n\n---\n\n");
+}
 
 app.post("/api/chat", async (req, res) => {
 	const { message } = req.body as ChatRequest;
@@ -99,11 +148,17 @@ app.post("/api/chat", async (req, res) => {
 	}
 
 	try {
+		const context = await retrieveContext(trimmed);
+
+		const systemPrompt = context
+			? `${SYSTEM_PROMPT}\n\n## Informações relevantes encontradas na base de dados do IFRS Canoas:\n\n${context}\n\nUse as informações acima para responder. Se a resposta não estiver no contexto, diga que não encontrou informação sobre isso nos documentos disponíveis.`
+			: SYSTEM_PROMPT;
+
 		const stream = await ollama.chat({
 			model: env.OLLAMA_MODEL,
 			stream: true,
 			messages: [
-				{ role: "system", content: SYSTEM_PROMPT },
+				{ role: "system", content: systemPrompt },
 				{ role: "user", content: trimmed },
 			],
 		});
@@ -118,7 +173,7 @@ app.post("/api/chat", async (req, res) => {
 		res.write("data: [DONE]\n\n");
 		res.end();
 	} catch (error) {
-		console.error("Ollama error:", error);
+		console.error("Chat error:", error);
 		const message =
 			error instanceof Error ? error.message : "Erro desconhecido";
 		res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
@@ -128,7 +183,11 @@ app.post("/api/chat", async (req, res) => {
 
 console.log("Running database migrations...");
 await migrate(db, {
-	migrationsFolder: join(process.cwd(), "packages/db/src/migrations"),
+	migrationsFolder: join(
+		fileURLToPath(
+			new URL("../../../packages/db/src/migrations", import.meta.url),
+		),
+	),
 });
 console.log("Migrations applied.");
 

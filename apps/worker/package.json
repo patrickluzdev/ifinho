@@ -1,0 +1,24 @@
+{
+	"name": "worker",
+	"type": "module",
+	"main": "src/index.ts",
+	"scripts": {
+		"dev": "tsx watch src/index.ts",
+		"build": "tsdown",
+		"check-types": "tsc -b"
+	},
+	"dependencies": {
+		"@ifinho/db": "*",
+		"@ifinho/env": "*",
+		"@ifinho/queue": "*",
+		"@ifinho/scraper": "*",
+		"dotenv": "^17.2.2"
+	},
+	"devDependencies": {
+		"@ifinho/config": "*",
+		"@types/node": "^22.13.14",
+		"tsdown": "^0.16.5",
+		"tsx": "^4.19.2",
+		"typescript": "^5"
+	}
+}

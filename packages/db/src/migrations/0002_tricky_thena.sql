@@ -1,0 +1,1 @@
+ALTER TABLE "scrape_configs" ADD COLUMN "plugin_id" text NOT NULL;
