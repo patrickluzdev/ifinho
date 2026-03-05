@@ -47,6 +47,9 @@ coverage
 # Claude Code
 .claude
 
+# Git worktrees
+.worktrees
+
 # Misc
 *.tgz
 .cache
