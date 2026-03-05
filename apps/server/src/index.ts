@@ -70,7 +70,12 @@ Estou em desenvolvimento! Em breve estarei totalmente integrado com todos os doc
 const SYSTEM_PROMPT = `Você é o Ifinho, assistente virtual do IFRS Campus Canoas.
 Responda sempre em português, de forma clara e objetiva, usando Markdown para formatar suas respostas (títulos, listas, negrito quando fizer sentido).
 Use emojis com frequência para deixar as respostas mais visuais e amigáveis — em títulos, itens de lista, destaques e no início de seções. Cada item de lista deve ter um emoji relevante.
-Ao citar fontes, mantenha os links Markdown exatamente como aparecem no contexto, no formato [texto](url).`;
+Ao citar fontes, mantenha os links Markdown exatamente como aparecem no contexto, no formato [texto](url).
+
+REGRAS IMPORTANTES:
+- Responda APENAS com base nas informações fornecidas no contexto abaixo.
+- Se a resposta não estiver no contexto, diga claramente que não encontrou essa informação nos documentos disponíveis. NÃO invente, suponha ou complete com informações que não estão no contexto.
+- Nunca crie listas de notícias, datas, eventos ou qualquer dado que não esteja explicitamente no contexto fornecido.`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -161,8 +166,8 @@ app.post("/api/chat", async (req, res) => {
 		const context = await retrieveContext(trimmed);
 
 		const systemPrompt = context
-			? `${SYSTEM_PROMPT}\n\n## Informações relevantes encontradas na base de dados do IFRS Canoas:\n\n${context}\n\nUse as informações acima para responder. Se a resposta não estiver no contexto, diga que não encontrou informação sobre isso nos documentos disponíveis.`
-			: SYSTEM_PROMPT;
+			? `${SYSTEM_PROMPT}\n\n## Trechos encontrados na base de dados do IFRS Canoas:\n\n${context}\n\nUse SOMENTE os trechos acima para responder. Não adicione informações que não estejam nesses trechos.`
+			: `${SYSTEM_PROMPT}\n\nNenhuma informação relevante foi encontrada na base de dados para essa pergunta. Informe ao usuário que não há dados disponíveis sobre isso nos documentos do campus.`;
 
 		const tLlm = Date.now();
 		const stream = await ollama.chat({
@@ -173,11 +178,15 @@ app.post("/api/chat", async (req, res) => {
 				{ role: "user", content: trimmed },
 			],
 		});
-		console.log(`[chat] llm first token: ${Date.now() - tLlm}ms`);
 
+		let firstToken = true;
 		for await (const chunk of stream) {
 			const token = chunk.message.content;
 			if (token) {
+				if (firstToken) {
+					console.log(`[chat] llm first token: ${Date.now() - tLlm}ms`);
+					firstToken = false;
+				}
 				res.write(`data: ${JSON.stringify({ token })}\n\n`);
 			}
 		}
@@ -224,6 +233,25 @@ if (newlyApplied.length === 0) {
 	}
 }
 console.log(`[migrations] Done. Total applied: ${after.length}`);
+
+// Warmup: preload models into memory to avoid cold start on first chat request
+console.log(`[warmup] Loading embed model: ${env.OLLAMA_EMBED_MODEL}`);
+console.log(`[warmup] Loading chat model: ${env.OLLAMA_MODEL}`);
+const tWarmup = Date.now();
+try {
+	await Promise.all([
+		ollama.embed({ model: env.OLLAMA_EMBED_MODEL, input: "warmup" }),
+		ollama.chat({
+			model: env.OLLAMA_MODEL,
+			stream: false,
+			messages: [{ role: "user", content: "oi" }],
+			options: { num_predict: 1 },
+		}),
+	]);
+	console.log(`[warmup] Models ready in ${Date.now() - tWarmup}ms.`);
+} catch (err) {
+	console.warn("[warmup] Failed to preload models:", err);
+}
 
 app.listen(3000, () => {
 	console.log("Server is running on http://localhost:3000");
