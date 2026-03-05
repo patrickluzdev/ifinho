@@ -7,7 +7,7 @@ interface FetcherOptions {
 }
 
 const DEFAULT_USER_AGENT =
-	"Ifinho-Bot/1.0 (+https://github.com/your-org/ifinho; educational project)";
+	"Ifinho-Bot/1.0 (+https://github.com/patrickluzdev/ifinho; educational project)";
 
 export class Fetcher {
 	private lastRequestAt = 0;

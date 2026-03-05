@@ -116,8 +116,6 @@ export function Message({
 	);
 
 	const markdownComponents = React.useMemo(() => {
-		if (patternHandlers.length === 0) return undefined;
-
 		const processChildren = (children: React.ReactNode) => {
 			if (Array.isArray(children)) {
 				return children.map((c, index) =>
@@ -132,7 +130,24 @@ export function Message({
 			return typeof children === "string" ? processContent(children) : children;
 		};
 
+		const base = {
+			a: ({
+				href,
+				children,
+			}: {
+				href?: string;
+				children?: React.ReactNode;
+			}) => (
+				<a href={href} target="_blank" rel="noopener noreferrer">
+					{children}
+				</a>
+			),
+		};
+
+		if (patternHandlers.length === 0) return base;
+
 		return {
+			...base,
 			p: ({ children }: { children?: React.ReactNode }) => (
 				<p>{processChildren(children)}</p>
 			),
