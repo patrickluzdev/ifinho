@@ -1,3 +1,4 @@
+import type { SSEEvent } from "@ifinho/types";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 
 export async function* streamSSE(
@@ -22,7 +23,7 @@ export async function* streamSSE(
 
 	for await (const event of stream) {
 		if (event.data === "[DONE]") break;
-		const parsed = JSON.parse(event.data) as { token?: string; error?: string };
+		const parsed = JSON.parse(event.data) as SSEEvent;
 		if (parsed.error) throw new Error(parsed.error);
 		if (parsed.token) yield parsed.token;
 	}

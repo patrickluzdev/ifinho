@@ -1,4 +1,5 @@
 import { env } from "@ifinho/env/server";
+import type { ChatRequest } from "@ifinho/types";
 import cors from "cors";
 import express from "express";
 import { Ollama } from "ollama";
@@ -69,8 +70,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const ollama = new Ollama({ host: env.OLLAMA_BASE_URL });
 
 app.post("/api/chat", async (req, res) => {
-	const body = req.body as { message?: unknown };
-	const message = body.message;
+	const { message } = req.body as ChatRequest;
 
 	if (typeof message !== "string" || !message.trim()) {
 		res.status(400).json({ error: "message is required" });
