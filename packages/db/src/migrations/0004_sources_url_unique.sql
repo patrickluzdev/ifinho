@@ -1,1 +1,2 @@
-CREATE UNIQUE INDEX IF NOT EXISTS sources_url_unique ON sources (url) WHERE url IS NOT NULL;
+DROP INDEX IF EXISTS sources_url_unique;
+CREATE UNIQUE INDEX IF NOT EXISTS sources_url_unique ON sources (url);
