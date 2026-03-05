@@ -43,6 +43,26 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       OLLAMA_BASE_URL: http://ifinho-ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ifinho-network
+
+  worker:
+    container_name: ifinho-worker
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    profiles:
+      - prod
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ifinho-postgres:5432/${POSTGRES_DB}
+      OLLAMA_BASE_URL: http://ifinho-ollama:11434
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       NODE_ENV: production
     depends_on:
       postgres:
