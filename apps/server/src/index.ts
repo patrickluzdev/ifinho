@@ -1,6 +1,9 @@
+import { join } from "node:path";
+import { db } from "@ifinho/db";
 import { env } from "@ifinho/env/server";
 import type { ChatRequest } from "@ifinho/types";
 import cors from "cors";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import express from "express";
 import { Ollama } from "ollama";
 
@@ -122,6 +125,12 @@ app.post("/api/chat", async (req, res) => {
 		res.end();
 	}
 });
+
+console.log("Running database migrations...");
+await migrate(db, {
+	migrationsFolder: join(process.cwd(), "packages/db/src/migrations"),
+});
+console.log("Migrations applied.");
 
 app.listen(3000, () => {
 	console.log("Server is running on http://localhost:3000");
